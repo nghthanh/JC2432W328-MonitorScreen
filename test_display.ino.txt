@@ -1,0 +1,42 @@
+// Simple Display Test - rename this to test_display.ino to test
+// This will help verify your TFT display pins are correct
+
+#include <TFT_eSPI.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  Serial.println("Testing TFT Display...");
+
+  tft.init();
+  tft.setRotation(0);
+
+  // Fill screen with color to test
+  tft.fillScreen(TFT_RED);
+  delay(1000);
+
+  tft.fillScreen(TFT_GREEN);
+  delay(1000);
+
+  tft.fillScreen(TFT_BLUE);
+  delay(1000);
+
+  tft.fillScreen(TFT_BLACK);
+
+  // Draw text
+  tft.setTextColor(TFT_WHITE);
+  tft.setTextSize(2);
+  tft.setCursor(50, 100);
+  tft.println("Display");
+  tft.setCursor(70, 130);
+  tft.println("Works!");
+
+  Serial.println("If you see colors and text, your pins are correct!");
+}
+
+void loop() {
+  // Nothing
+}
