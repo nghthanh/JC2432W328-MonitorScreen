@@ -64,6 +64,8 @@ python monitor_client.py --mode ble --device ESP32_Monitor
 - `--port`: UDP port for WiFi mode (default: `8080`)
 - `--device`: BLE device name for BLE mode (default: `ESP32_Monitor`)
 - `--interval`: Update interval in seconds (default: `1`)
+- `--log`: Enable logging output (disabled by default for silent operation)
+- `--quiet`: Disable all logging output (same as not using `--log`)
 
 ### Examples
 
@@ -76,6 +78,29 @@ Connect via BLE with custom device name:
 ```bash
 python monitor_client.py --mode ble --device MyESP32 --interval 1
 ```
+
+Run silently in background (no console output):
+```bash
+python monitor_client.py --host 192.168.1.100 --port 8080
+```
+
+Run with logging enabled for debugging:
+```bash
+python monitor_client.py --host 192.168.1.100 --port 8080 --log
+```
+
+### Silent Mode
+
+By default, the client runs in silent mode (no console output). This is ideal for:
+- Running as a background process
+- Running as a Windows service or Linux daemon
+- Minimizing resource usage
+- Clean logs when running multiple instances
+
+Enable `--log` flag when you need to:
+- Debug connection issues
+- Monitor data being sent
+- Verify the client is running correctly
 
 ## Temperature Monitoring
 

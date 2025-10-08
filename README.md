@@ -22,6 +22,15 @@ A comprehensive PC system monitoring solution using ESP32 microcontroller with S
   - Minimal: Large numbers, clean layout
   - Graph: Historical data visualization
   - Compact: Dense information with small graphs
+- **Date/Time Display**:
+  - Real-time clock display on all screens
+  - Manual time setting via CLI/Web
+  - Automatic NTP synchronization (WiFi mode)
+  - Timezone configuration support
+- **Idle Timeout**:
+  - Configurable timeout (default 30s)
+  - Returns to idle screen when no data received
+  - Continues to show date/time on idle screen
 - **Alert System**: Visual alerts for:
   - High CPU temperature
   - Low memory
@@ -164,22 +173,44 @@ BL     -------> GPIO 27
 
 ### CLI Commands
 
+#### General Commands
 | Command | Description | Example |
 |---------|-------------|---------|
 | `help` | Show all commands | `help` |
 | `status` | Display system status | `status` |
+| `reset` | Reset to defaults | `reset` |
+
+#### Network Commands
+| Command | Description | Example |
+|---------|-------------|---------|
 | `scanwifi` | Scan for WiFi networks | `scanwifi` |
 | `selectwifi` | Select WiFi by index | `selectwifi 0 MyPassword` |
 | `setwifi` | Set WiFi credentials | `setwifi "My Network" MyPassword` |
 | `setinterface` | Set comm interface | `setinterface wifi` or `setinterface ble` |
 | `setblename` | Set BLE device name | `setblename MyMonitor` |
+| `setport` | Set server port | `setport 8080` |
+
+#### Display Commands
+| Command | Description | Example |
+|---------|-------------|---------|
 | `settheme` | Set display theme (0-3) | `settheme 2` |
 | `setbrightness` | Set brightness (0-255) | `setbrightness 200` |
 | `setalert` | Set alert threshold | `setalert cpu 85` |
-| `setport` | Set server port | `setport 8080` |
-| `reset` | Reset to defaults | `reset` |
+| `setidletimeout` | Set idle timeout (seconds) | `setidletimeout 60` |
 
-**Note:** For SSIDs with spaces, use quotes: `setwifi "My WiFi Network" password`
+#### Date/Time Commands
+| Command | Description | Example |
+|---------|-------------|---------|
+| `setdatetime` | Set date and time | `setdatetime 2025-10-08 14:30:00` |
+| `getdatetime` | Get current date/time | `getdatetime` |
+| `syncntp` | Sync time with NTP server | `syncntp` |
+| `setntpserver` | Set NTP server | `setntpserver pool.ntp.org` |
+| `settimezone` | Set timezone offset | `settimezone 28800` (UTC+8) |
+
+**Notes:**
+- For SSIDs with spaces, use quotes: `setwifi "My WiFi Network" password`
+- All CLI output uses CRLF line endings for compatibility
+- Timezone offset is in seconds (e.g., 3600 = UTC+1, -18000 = UTC-5)
 
 ### Web Configuration
 
@@ -227,6 +258,20 @@ Options:
   --port PORT            ESP32 UDP port (WiFi mode, default: 8080)
   --device DEVICE        BLE device name (BLE mode)
   --interval INTERVAL    Update interval in seconds (default: 1)
+  --log                  Enable logging output (disabled by default)
+  --quiet                Disable all logging output
+```
+
+**Examples:**
+
+Run silently (no output):
+```bash
+python monitor_client.py --host 192.168.1.100 --port 8080
+```
+
+Run with logging enabled:
+```bash
+python monitor_client.py --host 192.168.1.100 --port 8080 --log
 ```
 
 ### Display Themes
@@ -254,6 +299,70 @@ setalert disk 10    # Alert if disk < 10% free
 ```
 
 Visual alerts will appear at the top of the display when thresholds are exceeded.
+
+## Date/Time Features
+
+### Manual Time Setting
+
+Set date and time via CLI:
+```bash
+setdatetime 2025-10-08 14:30:00
+```
+
+Or via web interface (WiFi mode only).
+
+### Automatic NTP Synchronization
+
+Configure timezone (in seconds):
+```bash
+settimezone 28800        # UTC+8
+settimezone -18000       # UTC-5 (EST)
+settimezone -18000 3600  # UTC-5 with DST
+```
+
+Set NTP server (optional):
+```bash
+setntpserver pool.ntp.org
+```
+
+Sync time:
+```bash
+syncntp
+```
+
+### Time Display
+
+- **Idle Screen**: Shows full date (YYYY-MM-DD) and time (HH:MM)
+- **Monitor Screens**:
+  - Default/Graph themes: Time (HH:MM) in top-right corner
+  - Minimal/Compact themes: Full date-time centered at top
+- Updates every second, even when no data is received
+
+## Idle Timeout Feature
+
+The display automatically returns to the idle screen when no data is received for a configured period.
+
+### Configuration
+
+Via CLI:
+```bash
+setidletimeout 60    # Set to 60 seconds
+setidletimeout 0     # Disable idle timeout
+```
+
+Via web interface:
+- Navigate to `/config`
+- Set "Idle Timeout" field
+- 0 = disabled, 1-65535 = seconds
+
+### Behavior
+
+1. **Data Received** → Display shows monitoring data
+2. **No Data for 5s** → Warning message shown
+3. **No Data for timeout period** (default 30s) → Returns to idle screen
+4. **Data Received Again** → Automatically exits idle mode
+
+The idle screen continues to show the current date/time.
 
 ## Data Format
 
@@ -351,10 +460,11 @@ The PC client sends JSON data in this format:
 - Monitor Serial output for error messages
 
 ### No data received
-- Verify PC client is running
+- Verify PC client is running (use `--log` to see output)
 - Check IP address and port match
 - Verify firewall settings on PC
 - Check network connectivity
+- Display will return to idle screen after timeout period
 
 ### BLE connection issues
 - Ensure BLE is enabled on PC
@@ -366,7 +476,9 @@ The PC client sends JSON data in this format:
 
 - **Update Rate**: Configurable (default 1 second)
 - **Display Refresh**: 500ms to prevent flickering
-- **Data Timeout**: 5 seconds
+- **Time Update**: 1 second (independent of data updates)
+- **Data Warning Timeout**: 5 seconds
+- **Idle Timeout**: Configurable (default 30 seconds)
 - **Memory Usage**: ~50KB RAM
 - **WiFi Latency**: < 50ms typical
 - **BLE Latency**: < 100ms typical
@@ -386,6 +498,15 @@ This project is open source and available for modification and distribution.
 
 For issues, questions, or contributions, please refer to the project repository.
 
+## Recent Enhancements
+
+- [x] Date/time display on all screens
+- [x] NTP time synchronization
+- [x] Timezone configuration
+- [x] Configurable idle timeout
+- [x] Silent mode for PC client
+- [x] CRLF line endings in CLI
+
 ## Future Enhancements
 
 - [ ] OTA (Over-The-Air) firmware updates
@@ -395,3 +516,4 @@ For issues, questions, or contributions, please refer to the project repository.
 - [ ] Mobile app for configuration
 - [ ] MQTT support for home automation
 - [ ] Custom widgets and layouts
+- [ ] Additional clock formats (12/24 hour)
