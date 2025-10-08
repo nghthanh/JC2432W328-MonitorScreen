@@ -1,0 +1,19 @@
+# ESP32 System Monitor - GUI Application Requirements
+
+# Core dependencies (from monitor_client.py)
+psutil>=5.9.0
+
+# GUI framework
+PyQt5>=5.15.0
+
+# Serial communication for device configuration
+pyserial>=3.5
+
+# Optional: GPU monitoring
+GPUtil>=1.4.0
+
+# Optional: Windows temperature monitoring
+# wmi>=1.5.1  # Uncomment for Windows
+
+# Optional: BLE support (future feature)
+# bleak>=0.19.0  # Uncomment for BLE mode

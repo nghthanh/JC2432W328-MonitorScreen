@@ -1,5 +1,21 @@
 # ESP32 System Monitor - PC Client
 
+Python applications that collect system information from your PC and send it to the ESP32 monitor display.
+
+## Applications
+
+### 1. Command-Line Client (`monitor_client.py`)
+Lightweight terminal-based client for system monitoring. Ideal for automation and background operation.
+
+### 2. GUI Application (`monitor_gui.py`)
+Full-featured PyQt5 GUI with device configuration capabilities. User-friendly interface with visual feedback.
+
+**For GUI documentation, see [README_GUI.md](README_GUI.md)**
+
+---
+
+## Command-Line Client
+
 Python application that collects system information from your PC and sends it to the ESP32 monitor display.
 
 ## Features

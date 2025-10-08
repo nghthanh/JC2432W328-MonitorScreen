@@ -40,6 +40,7 @@ A comprehensive PC system monitoring solution using ESP32 microcontroller with S
 
 ### Configuration
 - **CLI Interface**: Serial-based command-line configuration
+- **GUI Application**: PyQt5-based graphical configuration tool
 - **Web Interface**: Browser-based configuration (WiFi mode only)
 - **Persistent Storage**: Settings saved to flash memory
 - **Extensible Commands**: Easy to add new CLI commands
@@ -62,9 +63,13 @@ MonitorScreen/
 ├── Display.h / Display.cpp    # Display interface
 ├── WebServer.h / WebServer.cpp # Web server
 │
-├── pc_app/                    # Python PC application
-│   ├── monitor_client.py
-│   └── requirements.txt
+├── pc_app/                    # Python PC applications
+│   ├── monitor_client.py      # Command-line client
+│   ├── monitor_gui.py         # GUI application
+│   ├── requirements.txt       # CLI dependencies
+│   ├── requirements_gui.txt   # GUI dependencies
+│   ├── README.md              # CLI documentation
+│   └── README_GUI.md          # GUI documentation
 │
 └── Doc/
     ├── requirements.txt       # Project requirements
@@ -147,11 +152,27 @@ BL     -------> GPIO 27
 
 ### PC Application
 
+You have two options for the PC application:
+
+#### Option 1: Command-Line Client (Lightweight)
 1. Navigate to `pc_app` directory
 2. Install Python dependencies:
    ```bash
    pip install -r requirements.txt
    ```
+
+#### Option 2: GUI Application (User-Friendly)
+1. Navigate to `pc_app` directory
+2. Install GUI dependencies:
+   ```bash
+   pip install -r requirements_gui.txt
+   ```
+3. Run the GUI:
+   ```bash
+   python monitor_gui.py
+   ```
+
+For detailed GUI documentation, see [pc_app/README_GUI.md](pc_app/README_GUI.md)
 
 ## Configuration
 
@@ -228,12 +249,26 @@ When using WiFi mode:
 
 ### WiFi Mode
 
+#### Using Command-Line Client
+
 1. Configure ESP32 for WiFi (see Configuration)
 2. Note the IP address shown in Serial Monitor
 3. On your PC, run:
    ```bash
-   python pc_app/monitor_client.py --mode wifi --host <ESP32_IP> --port 8080
+   python pc_app/monitor_client.py --mode wifi --host <ESP32_IP> --port 8080 --log
    ```
+
+#### Using GUI Application
+
+1. Run the GUI application:
+   ```bash
+   python pc_app/monitor_gui.py
+   ```
+2. Enter ESP32 IP address in the Monitor tab
+3. Click "Start Monitoring"
+4. Use the "Device Config" tab to configure ESP32 settings via serial connection
+
+**Recommendation**: Use GUI for initial setup and configuration, then use command-line for continuous monitoring.
 
 ### BLE Mode
 
@@ -506,6 +541,7 @@ For issues, questions, or contributions, please refer to the project repository.
 - [x] Configurable idle timeout
 - [x] Silent mode for PC client
 - [x] CRLF line endings in CLI
+- [x] **NEW: PyQt5 GUI Application** with device configuration
 
 ## Future Enhancements
 
