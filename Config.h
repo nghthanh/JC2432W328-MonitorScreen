@@ -60,6 +60,27 @@ public:
     void setServerPort(uint16_t port);
     uint16_t getServerPort();
 
+    // Idle timeout settings
+    void setIdleTimeout(uint16_t seconds);
+    uint16_t getIdleTimeout();
+
+    // Date/Time settings
+    void setDateTime(int year, int month, int day, int hour, int minute, int second);
+    void getDateTime(int& year, int& month, int& day, int& hour, int& minute, int& second);
+    String getFormattedDate();
+    String getFormattedTime();
+    String getFormattedDateTime();
+    void updateTime();  // Updates internal time counter
+
+    // NTP settings
+    bool syncTimeWithNTP(const char* ntpServer = "pool.ntp.org", long gmtOffset = 0, int daylightOffset = 0);
+    void setNTPServer(const char* server);
+    String getNTPServer();
+    void setGMTOffset(long offset);
+    long getGMTOffset();
+    void setDaylightOffset(int offset);
+    int getDaylightOffset();
+
 private:
     Config();
     Preferences prefs;
@@ -72,6 +93,21 @@ private:
     uint8_t brightness;
     AlertThresholds alertThresholds;
     uint16_t serverPort;
+    uint16_t idleTimeout;  // Seconds before returning to idle screen
+
+    // Date/Time storage
+    int dateYear;
+    int dateMonth;
+    int dateDay;
+    int timeHour;
+    int timeMinute;
+    int timeSecond;
+    unsigned long lastTimeUpdate;
+
+    // NTP storage
+    String ntpServer;
+    long gmtOffset;
+    int daylightOffset;
 
     void loadSettings();
     void saveSettings();

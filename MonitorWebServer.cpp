@@ -64,6 +64,16 @@ void MonitorWebServer::handleConfigSave() {
     if (srv->hasArg("brightness")) {
         cfg.setBrightness((uint8_t)srv->arg("brightness").toInt());
     }
+    if (srv->hasArg("datetime")) {
+        String datetime = srv->arg("datetime");
+        int year, month, day, hour, minute, second;
+        if (sscanf(datetime.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second) == 6) {
+            cfg.setDateTime(year, month, day, hour, minute, second);
+        }
+    }
+    if (srv->hasArg("idletimeout")) {
+        cfg.setIdleTimeout((uint16_t)srv->arg("idletimeout").toInt());
+    }
 
     srv->send(200, "text/html",
         "<html><body><h1>Configuration Saved</h1>"
@@ -135,6 +145,10 @@ String MonitorWebServer::generateHomePage() {
     html += "<span class='label'>Network Download:</span> <span class='value'>" + String(data.networkDownload, 2) + " KB/s</span>";
     html += "</div>";
 
+    html += "<div class='info'>";
+    html += "<span class='label'>Date/Time:</span> <span class='value'>" + Config::getInstance().getFormattedDateTime() + "</span>";
+    html += "</div>";
+
     html += "<br><a href='/config'>Configuration</a> | ";
     html += "<a href='/status'>JSON Status</a> | ";
     html += "<a href='/restart'>Restart Device</a>";
@@ -179,6 +193,16 @@ String MonitorWebServer::generateConfigPage() {
 
     html += "<label>Brightness (0-255):</label>";
     html += "<input type='number' name='brightness' min='0' max='255' value='" + String(cfg.getBrightness()) + "'>";
+
+    html += "<label>Date/Time:</label>";
+    int year, month, day, hour, minute, second;
+    cfg.getDateTime(year, month, day, hour, minute, second);
+    char datetimeBuf[32];
+    sprintf(datetimeBuf, "%04d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute, second);
+    html += "<input type='datetime-local' name='datetime' value='" + String(datetimeBuf) + "'>";
+
+    html += "<label>Idle Timeout (seconds, 0=disabled):</label>";
+    html += "<input type='number' name='idletimeout' min='0' max='65535' value='" + String(cfg.getIdleTimeout()) + "'>";
 
     html += "<br><button type='submit'>Save Configuration</button>";
     html += "</form>";

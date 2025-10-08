@@ -39,7 +39,7 @@ void CLI::update() {
             }
 
             lastWasReturn = (c == '\r');
-            Serial.println();  // Send newline
+            Serial.print("\r\n");  // Send CRLF
 
             if (cmdIndex > 0) {
                 cmdBuffer[cmdIndex] = '\0';
@@ -137,7 +137,8 @@ void CLI::showHelp() {
             Serial.print(" ");
         }
         Serial.print(" - ");
-        Serial.println(cmd.description);
+        Serial.print(cmd.description);
+        Serial.print("\r\n");
     }
 }
 
@@ -146,7 +147,8 @@ void CLI::print(const char* str) {
 }
 
 void CLI::println(const char* str) {
-    Serial.println(str);
+    Serial.print(str);
+    Serial.print("\r\n");
 }
 
 void CLI::printf(const char* format, ...) {
@@ -155,7 +157,21 @@ void CLI::printf(const char* format, ...) {
     va_start(args, format);
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
-    Serial.print(buffer);
+
+    // Replace \n with \r\n for proper line endings
+    char output[512];
+    int outIdx = 0;
+    for (int i = 0; buffer[i] != '\0' && outIdx < sizeof(output) - 2; i++) {
+        if (buffer[i] == '\n') {
+            output[outIdx++] = '\r';
+            output[outIdx++] = '\n';
+        } else {
+            output[outIdx++] = buffer[i];
+        }
+    }
+    output[outIdx] = '\0';
+
+    Serial.print(output);
 }
 
 // Built-in command handlers
@@ -203,6 +219,7 @@ void CLI::cmdStatus(int argc, char* argv[]) {
     cli.printf("Display Theme: %d\n", cfg.getDisplayTheme());
     cli.printf("Brightness: %d\n", cfg.getBrightness());
     cli.printf("Server Port: %d\n", cfg.getServerPort());
+    cli.printf("Idle Timeout: %d seconds\n", cfg.getIdleTimeout());
 
     AlertThresholds thresh = cfg.getAlertThresholds();
     cli.printf("\nAlert Thresholds:\n");

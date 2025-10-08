@@ -19,6 +19,15 @@ import argparse
 import platform
 import psutil
 
+# Global logging flag
+LOG_ENABLED = True
+
+
+def log_print(*args, **kwargs):
+    """Print only if logging is enabled"""
+    if LOG_ENABLED:
+        print(*args, **kwargs)
+
 
 class SystemMonitor:
     """Collects system information from the PC"""
@@ -250,7 +259,7 @@ class WiFiSender:
         self.host = host
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        print(f"WiFi sender initialized: {host}:{port}")
+        log_print(f"WiFi sender initialized: {host}:{port}")
 
     def send(self, data):
         """Send JSON data via UDP"""
@@ -259,7 +268,7 @@ class WiFiSender:
             self.sock.sendto(json_data.encode(), (self.host, self.port))
             return True
         except Exception as e:
-            print(f"Error sending data: {e}")
+            log_print(f"Error sending data: {e}")
             return False
 
     def close(self):
@@ -273,37 +282,37 @@ class BLESender:
         self.device_name = device_name
         self.client = None
         self.characteristic_uuid = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-        print(f"BLE sender initialized for device: {device_name}")
-        print("Note: BLE support requires 'bleak' library (pip install bleak)")
+        log_print(f"BLE sender initialized for device: {device_name}")
+        log_print("Note: BLE support requires 'bleak' library (pip install bleak)")
 
     async def connect(self):
         """Connect to BLE device"""
         from bleak import BleakScanner, BleakClient
 
-        print("Scanning for BLE devices...")
+        log_print("Scanning for BLE devices...")
         devices = await BleakScanner.discover()
 
         device_address = None
         for device in devices:
             if self.device_name in (device.name or ""):
                 device_address = device.address
-                print(f"Found device: {device.name} ({device.address})")
+                log_print(f"Found device: {device.name} ({device.address})")
                 break
 
         if not device_address:
-            print(f"Device '{self.device_name}' not found!")
+            log_print(f"Device '{self.device_name}' not found!")
             return False
 
         self.client = BleakClient(device_address)
         await self.client.connect()
-        print("Connected to BLE device")
+        log_print("Connected to BLE device")
         return True
 
     async def send(self, data):
         """Send JSON data via BLE"""
         try:
             if not self.client or not self.client.is_connected:
-                print("Not connected to BLE device")
+                log_print("Not connected to BLE device")
                 return False
 
             json_data = json.dumps(data)
@@ -313,7 +322,7 @@ class BLESender:
             )
             return True
         except Exception as e:
-            print(f"Error sending data: {e}")
+            log_print(f"Error sending data: {e}")
             return False
 
     async def close(self):
@@ -326,7 +335,7 @@ async def run_ble_mode(device_name, interval):
     try:
         from bleak import BleakClient
     except ImportError:
-        print("Error: bleak library not installed. Install with: pip install bleak")
+        log_print("Error: bleak library not installed. Install with: pip install bleak")
         return
 
     monitor = SystemMonitor()
@@ -335,19 +344,19 @@ async def run_ble_mode(device_name, interval):
     if not await sender.connect():
         return
 
-    print(f"\nSending system data via BLE every {interval} seconds...")
-    print("Press Ctrl+C to stop\n")
+    log_print(f"\nSending system data via BLE every {interval} seconds...")
+    log_print("Press Ctrl+C to stop\n")
 
     try:
         while True:
             data = monitor.get_system_data()
             if await sender.send(data):
-                print(f"Sent: CPU={data['cpu']['usage']}%, "
-                      f"MEM={data['memory']['percent']}%, "
-                      f"DISK={data['disk']['percent']}%")
+                log_print(f"Sent: CPU={data['cpu']['usage']}%, "
+                          f"MEM={data['memory']['percent']}%, "
+                          f"DISK={data['disk']['percent']}%")
             time.sleep(interval)
     except KeyboardInterrupt:
-        print("\nStopping...")
+        log_print("\nStopping...")
     finally:
         await sender.close()
 
@@ -357,24 +366,26 @@ def run_wifi_mode(host, port, interval):
     monitor = SystemMonitor()
     sender = WiFiSender(host, port)
 
-    print(f"\nSending system data via WiFi every {interval} seconds...")
-    print("Press Ctrl+C to stop\n")
+    log_print(f"\nSending system data via WiFi every {interval} seconds...")
+    log_print("Press Ctrl+C to stop\n")
 
     try:
         while True:
             data = monitor.get_system_data()
             if sender.send(data):
-                print(f"Sent: CPU={data['cpu']['usage']}%, "
-                      f"MEM={data['memory']['percent']}%, "
-                      f"DISK={data['disk']['percent']}%")
+                log_print(f"Sent: CPU={data['cpu']['usage']}%, "
+                          f"MEM={data['memory']['percent']}%, "
+                          f"DISK={data['disk']['percent']}%")
             time.sleep(interval)
     except KeyboardInterrupt:
-        print("\nStopping...")
+        log_print("\nStopping...")
     finally:
         sender.close()
 
 
 def main():
+    global LOG_ENABLED
+
     parser = argparse.ArgumentParser(description='ESP32 System Monitor - PC Client')
     parser.add_argument('--mode', choices=['wifi', 'ble'], default='wifi',
                         help='Communication mode (default: wifi)')
@@ -386,20 +397,27 @@ def main():
                         help='BLE device name (BLE mode, default: ESP32_Monitor)')
     parser.add_argument('--interval', type=int, default=1,
                         help='Update interval in seconds (default: 1)')
+    parser.add_argument('--log', action='store_true',
+                        help='Enable logging output (default: disabled)')
+    parser.add_argument('--quiet', action='store_true',
+                        help='Disable all logging output (same as not using --log)')
 
     args = parser.parse_args()
 
-    print("=" * 50)
-    print("ESP32 System Monitor - PC Client")
-    print("=" * 50)
-    print(f"Mode: {args.mode.upper()}")
-    print(f"Interval: {args.interval} seconds")
+    # Set logging based on arguments
+    LOG_ENABLED = args.log and not args.quiet
+
+    log_print("=" * 50)
+    log_print("ESP32 System Monitor - PC Client")
+    log_print("=" * 50)
+    log_print(f"Mode: {args.mode.upper()}")
+    log_print(f"Interval: {args.interval} seconds")
 
     if args.mode == 'wifi':
-        print(f"Target: {args.host}:{args.port}")
+        log_print(f"Target: {args.host}:{args.port}")
         run_wifi_mode(args.host, args.port, args.interval)
     else:
-        print(f"Device: {args.device}")
+        log_print(f"Device: {args.device}")
         import asyncio
         asyncio.run(run_ble_mode(args.device, args.interval))
 

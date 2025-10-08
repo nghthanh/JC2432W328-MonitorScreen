@@ -20,6 +20,12 @@ void registerCLICommands() {
     cli.registerCommand("setbrightness", "Set display brightness (setbrightness 0-255)", cmdSetBrightness);
     cli.registerCommand("setalert", "Set alert threshold (setalert cpu|mem|disk <value>)", cmdSetAlert);
     cli.registerCommand("setport", "Set server port (setport <port>)", cmdSetPort);
+    cli.registerCommand("setdatetime", "Set date and time (setdatetime YYYY-MM-DD HH:MM:SS)", cmdSetDateTime);
+    cli.registerCommand("getdatetime", "Get current date and time", cmdGetDateTime);
+    cli.registerCommand("syncntp", "Sync time with NTP server", cmdSyncNTP);
+    cli.registerCommand("setntpserver", "Set NTP server (setntpserver <server>)", cmdSetNTPServer);
+    cli.registerCommand("settimezone", "Set timezone offset in seconds (settimezone <gmtOffset> [dstOffset])", cmdSetTimezone);
+    cli.registerCommand("setidletimeout", "Set idle timeout in seconds (setidletimeout <seconds>)", cmdSetIdleTimeout);
 }
 
 void cmdSetWiFi(int argc, char* argv[]) {
@@ -278,4 +284,165 @@ void cmdSetPort(int argc, char* argv[]) {
     Config::getInstance().setServerPort((uint16_t)port);
     cli.printf("Server port set to: %d\n", port);
     cli.println("Restart required for changes to take effect");
+}
+
+void cmdSetDateTime(int argc, char* argv[]) {
+    CLI& cli = CLI::getInstance();
+
+    if (argc < 3) {
+        cli.println("Usage: setdatetime YYYY-MM-DD HH:MM:SS");
+        cli.println("Example: setdatetime 2025-10-08 14:30:00");
+        return;
+    }
+
+    // Parse date (YYYY-MM-DD)
+    int year, month, day;
+    if (sscanf(argv[1], "%d-%d-%d", &year, &month, &day) != 3) {
+        cli.println("Invalid date format. Use YYYY-MM-DD");
+        return;
+    }
+
+    // Parse time (HH:MM:SS)
+    int hour, minute, second;
+    if (sscanf(argv[2], "%d:%d:%d", &hour, &minute, &second) != 3) {
+        cli.println("Invalid time format. Use HH:MM:SS");
+        return;
+    }
+
+    // Validate ranges
+    if (year < 2000 || year > 2099) {
+        cli.println("Year must be between 2000 and 2099");
+        return;
+    }
+    if (month < 1 || month > 12) {
+        cli.println("Month must be between 1 and 12");
+        return;
+    }
+    if (day < 1 || day > 31) {
+        cli.println("Day must be between 1 and 31");
+        return;
+    }
+    if (hour < 0 || hour > 23) {
+        cli.println("Hour must be between 0 and 23");
+        return;
+    }
+    if (minute < 0 || minute > 59) {
+        cli.println("Minute must be between 0 and 59");
+        return;
+    }
+    if (second < 0 || second > 59) {
+        cli.println("Second must be between 0 and 59");
+        return;
+    }
+
+    Config::getInstance().setDateTime(year, month, day, hour, minute, second);
+    cli.printf("Date/Time set to: %04d-%02d-%02d %02d:%02d:%02d\n",
+               year, month, day, hour, minute, second);
+}
+
+void cmdGetDateTime(int argc, char* argv[]) {
+    CLI& cli = CLI::getInstance();
+
+    int year, month, day, hour, minute, second;
+    Config::getInstance().getDateTime(year, month, day, hour, minute, second);
+
+    cli.printf("Current Date/Time: %04d-%02d-%02d %02d:%02d:%02d\n",
+               year, month, day, hour, minute, second);
+}
+
+void cmdSyncNTP(int argc, char* argv[]) {
+    CLI& cli = CLI::getInstance();
+    Config& cfg = Config::getInstance();
+
+    cli.println("Syncing time with NTP server...");
+
+    bool success = cfg.syncTimeWithNTP(
+        cfg.getNTPServer().c_str(),
+        cfg.getGMTOffset(),
+        cfg.getDaylightOffset()
+    );
+
+    if (success) {
+        cli.println("Time synchronized successfully!");
+        int year, month, day, hour, minute, second;
+        cfg.getDateTime(year, month, day, hour, minute, second);
+        cli.printf("Current time: %04d-%02d-%02d %02d:%02d:%02d\n",
+                   year, month, day, hour, minute, second);
+    } else {
+        cli.println("Failed to sync time. Make sure WiFi is connected.");
+    }
+}
+
+void cmdSetNTPServer(int argc, char* argv[]) {
+    CLI& cli = CLI::getInstance();
+
+    if (argc < 2) {
+        cli.println("Usage: setntpserver <server>");
+        cli.println("Example: setntpserver pool.ntp.org");
+        cli.printf("Current server: %s\n", Config::getInstance().getNTPServer().c_str());
+        return;
+    }
+
+    Config::getInstance().setNTPServer(argv[1]);
+    cli.printf("NTP server set to: %s\n", argv[1]);
+}
+
+void cmdSetTimezone(int argc, char* argv[]) {
+    CLI& cli = CLI::getInstance();
+
+    if (argc < 2) {
+        cli.println("Usage: settimezone <gmtOffset> [dstOffset]");
+        cli.println("GMT offset in seconds (e.g., 3600 for UTC+1, -18000 for UTC-5)");
+        cli.println("DST offset in seconds (default: 0)");
+        cli.println("Examples:");
+        cli.println("  settimezone 0         - UTC");
+        cli.println("  settimezone 3600      - UTC+1");
+        cli.println("  settimezone -18000    - UTC-5 (EST)");
+        cli.println("  settimezone -18000 3600 - EST with DST");
+        Config& cfg = Config::getInstance();
+        cli.printf("Current GMT offset: %ld seconds\n", cfg.getGMTOffset());
+        cli.printf("Current DST offset: %d seconds\n", cfg.getDaylightOffset());
+        return;
+    }
+
+    long gmtOffset = atol(argv[1]);
+    int dstOffset = 0;
+
+    if (argc >= 3) {
+        dstOffset = atoi(argv[2]);
+    }
+
+    Config& cfg = Config::getInstance();
+    cfg.setGMTOffset(gmtOffset);
+    cfg.setDaylightOffset(dstOffset);
+
+    cli.printf("Timezone set:\n");
+    cli.printf("  GMT Offset: %ld seconds\n", gmtOffset);
+    cli.printf("  DST Offset: %d seconds\n", dstOffset);
+    cli.println("Use 'syncntp' to sync time with these settings");
+}
+
+void cmdSetIdleTimeout(int argc, char* argv[]) {
+    CLI& cli = CLI::getInstance();
+
+    if (argc < 2) {
+        cli.println("Usage: setidletimeout <seconds>");
+        cli.println("Set the idle timeout (time before returning to idle screen)");
+        cli.println("Range: 0-65535 seconds (0 = disabled)");
+        cli.printf("Current idle timeout: %d seconds\n", Config::getInstance().getIdleTimeout());
+        return;
+    }
+
+    int timeout = atoi(argv[1]);
+    if (timeout < 0 || timeout > 65535) {
+        cli.println("Timeout must be between 0 and 65535 seconds");
+        return;
+    }
+
+    Config::getInstance().setIdleTimeout((uint16_t)timeout);
+    if (timeout == 0) {
+        cli.println("Idle timeout disabled");
+    } else {
+        cli.printf("Idle timeout set to: %d seconds\n", timeout);
+    }
 }

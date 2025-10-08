@@ -32,9 +32,12 @@ MonitorWebServer& webServer = MonitorWebServer::getInstance();
 SystemData systemData;
 unsigned long lastDataTime = 0;
 unsigned long lastDisplayUpdate = 0;
+unsigned long lastTimeUpdate = 0;
+bool inIdleMode = true;  // Start in idle mode
 
 #define DATA_TIMEOUT 5000      // No data timeout (ms)
 #define DISPLAY_UPDATE_RATE 500 // Display update rate (ms)
+#define TIME_UPDATE_RATE 1000   // Time display update rate (ms)
 
 void setup() {
     // Initialize configuration
@@ -94,6 +97,12 @@ void loop() {
     if (comm.receiveData(systemData)) {
         lastDataTime = millis();
 
+        // If we were in idle mode, exit it
+        if (inIdleMode) {
+            inIdleMode = false;
+            Serial.println("Received data, exiting idle mode");
+        }
+
         // Update web server data
         webServer.setSystemData(systemData);
 
@@ -107,8 +116,22 @@ void loop() {
     // Update web server
     webServer.update();
 
-    // Check for data timeout
-    if (lastDataTime > 0 && (millis() - lastDataTime > DATA_TIMEOUT)) {
+    // Update time display periodically
+    if (millis() - lastTimeUpdate >= TIME_UPDATE_RATE) {
+        display.updateTimeDisplay();
+        lastTimeUpdate = millis();
+    }
+
+    // Check for idle timeout (return to idle screen)
+    uint16_t idleTimeoutSec = config.getIdleTimeout();
+    if (idleTimeoutSec > 0 && !inIdleMode && lastDataTime > 0 && (millis() - lastDataTime > (idleTimeoutSec * 1000UL))) {
+        Serial.printf("No data received for %d seconds, returning to idle screen\r\n", idleTimeoutSec);
+        display.showIdleScreen();
+        inIdleMode = true;
+    }
+
+    // Check for data timeout (show warning, but stay in monitor mode)
+    if (!inIdleMode && lastDataTime > 0 && (millis() - lastDataTime > DATA_TIMEOUT)) {
         static unsigned long lastTimeoutMsg = 0;
         if (millis() - lastTimeoutMsg > 10000) {
             display.showStatus("No data received");

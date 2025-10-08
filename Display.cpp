@@ -1,11 +1,12 @@
 #include "Display.h"
 #include <SPI.h>
 
-Display::Display() : historyIndex(0), alertActive(false), lastAlertTime(0) {
+Display::Display() : historyIndex(0), alertActive(false), lastAlertTime(0), hasData(false) {
     currentTheme = THEME_DEFAULT;
     memset(cpuHistory, 0, sizeof(cpuHistory));
     memset(memHistory, 0, sizeof(memHistory));
     memset(diskHistory, 0, sizeof(diskHistory));
+    lastTimeDisplayed = "";
 }
 
 Display& Display::getInstance() {
@@ -39,10 +40,26 @@ void Display::begin() {
     tft.setCursor(40, 170);
     tft.println("Waiting for data...");
 
+    // Display date/time
+    tft.setTextColor(COLOR_LABEL, COLOR_BG);
+    tft.setTextSize(1);
+    String dateStr = Config::getInstance().getFormattedDate();
+    String timeStr = Config::getInstance().getFormattedTime();
+    int16_t w = tft.textWidth(dateStr.c_str());
+    int x = (SCREEN_WIDTH - w) / 2;
+    tft.setCursor(x, 200);
+    tft.println(dateStr);
+    w = tft.textWidth(timeStr.c_str());
+    x = (SCREEN_WIDTH - w) / 2;
+    tft.setCursor(x, 215);
+    tft.println(timeStr);
+
     Serial.println("Display initialized");
 }
 
 void Display::update(const SystemData& data) {
+    hasData = true;
+
     // Check if theme changed
     DisplayTheme theme = Config::getInstance().getDisplayTheme();
     if (theme != currentTheme || needsFullRedraw()) {
@@ -75,6 +92,62 @@ void Display::update(const SystemData& data) {
     lastData = data;
 }
 
+void Display::updateTimeDisplay() {
+    String currentTime = Config::getInstance().getFormattedTime();
+
+    // Only update if time has changed
+    if (currentTime == lastTimeDisplayed) {
+        return;
+    }
+
+    lastTimeDisplayed = currentTime;
+
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_LABEL, COLOR_BG);
+
+    if (!hasData) {
+        // Start screen - show date and time centered below "Waiting for data..."
+        String dateStr = Config::getInstance().getFormattedDate();
+        int16_t w = tft.textWidth(dateStr.c_str());
+        int x = (SCREEN_WIDTH - w) / 2;
+        tft.fillRect(0, 200, SCREEN_WIDTH, 30, COLOR_BG);
+        tft.setCursor(x, 200);
+        tft.println(dateStr);
+        w = tft.textWidth(currentTime.c_str());
+        x = (SCREEN_WIDTH - w) / 2;
+        tft.setCursor(x, 215);
+        tft.println(currentTime);
+    } else {
+        // Monitor screen - update time in top corner based on theme
+        DisplayTheme theme = Config::getInstance().getDisplayTheme();
+
+        switch (theme) {
+            case THEME_MINIMAL:
+            case THEME_COMPACT: {
+                // For minimal and compact, time is shown with date in center
+                String dateTimeStr = Config::getInstance().getFormattedDateTime();
+                int16_t w = tft.textWidth(dateTimeStr.c_str());
+                int x = (SCREEN_WIDTH - w) / 2;
+                int y = (theme == THEME_MINIMAL) ? 10 : 5;
+                tft.fillRect(0, y, SCREEN_WIDTH, 12, COLOR_BG);
+                tft.setCursor(x, y);
+                tft.print(dateTimeStr);
+                break;
+            }
+            case THEME_DEFAULT:
+            case THEME_GRAPH:
+            default: {
+                // For default and graph, time is shown in top right
+                int16_t w = tft.textWidth(currentTime.c_str());
+                tft.fillRect(SCREEN_WIDTH - w - 5, 10, w + 5, 10, COLOR_BG);
+                tft.setCursor(SCREEN_WIDTH - w - 5, 10);
+                tft.print(currentTime);
+                break;
+            }
+        }
+    }
+}
+
 void Display::showStatus(const char* message) {
     tft.fillRect(0, 300, SCREEN_WIDTH, 20, COLOR_BG);
     tft.setTextSize(1);
@@ -93,9 +166,9 @@ void Display::showAlert(const char* message) {
 }
 
 void Display::showConnectionInfo(const char* info) {
-    // Display connection info below the title
-    int y = 190;
-    tft.fillRect(0, y, SCREEN_WIDTH, 50, COLOR_BG);
+    // Display connection info below the title, but above date/time
+    int y = 185;
+    tft.fillRect(0, y, SCREEN_WIDTH, 12, COLOR_BG);
     tft.setTextSize(1);
     tft.setTextColor(COLOR_LABEL, COLOR_BG);
 
@@ -105,10 +178,44 @@ void Display::showConnectionInfo(const char* info) {
 
     tft.setCursor(x, y);
     tft.print(info);
+
+    // Redraw date/time below connection info
+    updateTimeDisplay();
 }
 
 void Display::clear() {
     tft.fillScreen(COLOR_BG);
+}
+
+void Display::showIdleScreen() {
+    hasData = false;
+    tft.fillScreen(COLOR_BG);
+
+    // Show title
+    tft.setTextColor(COLOR_TEXT, COLOR_BG);
+    tft.setTextSize(2);
+    tft.setCursor(20, 140);
+    tft.println("System Monitor");
+    tft.setTextSize(1);
+    tft.setCursor(40, 170);
+    tft.println("Waiting for data...");
+
+    // Display date/time
+    tft.setTextColor(COLOR_LABEL, COLOR_BG);
+    tft.setTextSize(1);
+    String dateStr = Config::getInstance().getFormattedDate();
+    String timeStr = Config::getInstance().getFormattedTime();
+    int16_t w = tft.textWidth(dateStr.c_str());
+    int x = (SCREEN_WIDTH - w) / 2;
+    tft.setCursor(x, 200);
+    tft.println(dateStr);
+    w = tft.textWidth(timeStr.c_str());
+    x = (SCREEN_WIDTH - w) / 2;
+    tft.setCursor(x, 215);
+    tft.println(timeStr);
+    lastTimeDisplayed = timeStr;
+
+    Serial.println("Display returned to idle screen");
 }
 
 bool Display::needsFullRedraw() {
@@ -123,6 +230,16 @@ bool Display::needsFullRedraw() {
 
 void Display::renderThemeDefault(const SystemData& data) {
     int y = 10;
+
+    // Date/Time at top
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_LABEL, COLOR_BG);
+    String timeStr = Config::getInstance().getFormattedTime();
+    int16_t w = tft.textWidth(timeStr.c_str());
+    tft.fillRect(SCREEN_WIDTH - w - 5, y, w + 5, 10, COLOR_BG);
+    tft.setCursor(SCREEN_WIDTH - w - 5, y);
+    tft.print(timeStr);
+    y += 15;
 
     // CPU
     tft.setTextSize(1);
@@ -216,7 +333,19 @@ void Display::renderThemeDefault(const SystemData& data) {
 }
 
 void Display::renderThemeMinimal(const SystemData& data) {
-    int y = 40;
+    int y = 10;
+
+    // Date/Time at top
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_LABEL, COLOR_BG);
+    String dateTimeStr = Config::getInstance().getFormattedDateTime();
+    int16_t w = tft.textWidth(dateTimeStr.c_str());
+    int x = (SCREEN_WIDTH - w) / 2;
+    tft.fillRect(0, y, SCREEN_WIDTH, 12, COLOR_BG);
+    tft.setCursor(x, y);
+    tft.print(dateTimeStr);
+    y += 30;
+
     tft.setTextSize(2);
 
     char buf[32];
@@ -250,6 +379,15 @@ void Display::renderThemeMinimal(const SystemData& data) {
 
 void Display::renderThemeGraph(const SystemData& data) {
     int y = 10;
+
+    // Date/Time at top right
+    tft.setTextSize(1);
+    tft.setTextColor(COLOR_LABEL, COLOR_BG);
+    String timeStr = Config::getInstance().getFormattedTime();
+    int16_t w = tft.textWidth(timeStr.c_str());
+    tft.fillRect(SCREEN_WIDTH - w - 5, y, w + 5, 10, COLOR_BG);
+    tft.setCursor(SCREEN_WIDTH - w - 5, y);
+    tft.print(timeStr);
 
     // CPU Graph
     tft.setTextSize(1);
@@ -306,6 +444,16 @@ void Display::renderThemeCompact(const SystemData& data) {
     tft.setTextSize(1);
     int y = 5;
     char buf[64];
+
+    // Date/Time at top center
+    tft.setTextColor(COLOR_LABEL, COLOR_BG);
+    String dateTimeStr = Config::getInstance().getFormattedDateTime();
+    int16_t w = tft.textWidth(dateTimeStr.c_str());
+    int x = (SCREEN_WIDTH - w) / 2;
+    tft.fillRect(0, y, SCREEN_WIDTH, 12, COLOR_BG);
+    tft.setCursor(x, y);
+    tft.print(dateTimeStr);
+    y += 15;
 
     // Line 1: CPU
     sprintf(buf, "CPU:%3.0f%% %4.1fC", data.cpuUsage, data.cpuTemp);

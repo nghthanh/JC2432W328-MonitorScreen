@@ -25,4 +25,16 @@ void cmdSetAlert(int argc, char* argv[]);
 // Server commands
 void cmdSetPort(int argc, char* argv[]);
 
+// Idle timeout commands
+void cmdSetIdleTimeout(int argc, char* argv[]);
+
+// Date/Time commands
+void cmdSetDateTime(int argc, char* argv[]);
+void cmdGetDateTime(int argc, char* argv[]);
+
+// NTP commands
+void cmdSyncNTP(int argc, char* argv[]);
+void cmdSetNTPServer(int argc, char* argv[]);
+void cmdSetTimezone(int argc, char* argv[]);
+
 #endif

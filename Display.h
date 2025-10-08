@@ -27,6 +27,8 @@ public:
 
     void begin();
     void update(const SystemData& data);
+    void updateTimeDisplay();  // Update just the time display
+    void showIdleScreen();     // Show idle/waiting screen
     void showStatus(const char* message);
     void showAlert(const char* message);
     void showConnectionInfo(const char* info);
@@ -48,6 +50,10 @@ private:
     // Alert state
     bool alertActive;
     unsigned long lastAlertTime;
+
+    // Time display state
+    String lastTimeDisplayed;
+    bool hasData;
 
     void renderThemeDefault(const SystemData& data);
     void renderThemeMinimal(const SystemData& data);
