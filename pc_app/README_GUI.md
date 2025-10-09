@@ -8,6 +8,7 @@ A comprehensive PyQt5-based GUI application for monitoring PC system information
 
 ### Monitoring Tab
 - **Start/Stop Controls**: Easy one-click monitoring control
+- **Device Discovery**: Automatically discover ESP32 devices on your network using mDNS
 - **Live Data Display**: Real-time system metrics with progress bars
   - CPU usage and temperature
   - Memory usage
@@ -75,6 +76,14 @@ Or on Windows, you can double-click `monitor_gui.py` if Python is associated wit
 
 #### 1. Start Monitoring
 
+**Option A: Automatic Discovery (Recommended)**
+1. Open the **Monitor** tab
+2. Click **Scan Network** button
+3. Select your ESP32 device from the dropdown
+4. Click **Start Monitoring**
+5. Watch live system data appear in real-time!
+
+**Option B: Manual IP Entry**
 1. Open the **Monitor** tab
 2. Enter your ESP32's IP address (e.g., `192.168.1.100`)
 3. Verify the port matches your ESP32 configuration (default: `8080`)

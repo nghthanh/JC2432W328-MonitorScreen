@@ -16,6 +16,7 @@ void registerCLICommands() {
     cli.registerCommand("selectwifi", "Select WiFi by index (selectwifi <index> <password>)", cmdSelectWiFi);
     cli.registerCommand("setinterface", "Set communication interface (setinterface wifi|ble)", cmdSetInterface);
     cli.registerCommand("setblename", "Set BLE device name (setblename <name>)", cmdSetBLEName);
+    cli.registerCommand("setmdnsname", "Set mDNS hostname (setmdnsname <name>)", cmdSetMDNSName);
     cli.registerCommand("settheme", "Set display theme (settheme 0-3)", cmdSetTheme);
     cli.registerCommand("setbrightness", "Set display brightness (setbrightness 0-255)", cmdSetBrightness);
     cli.registerCommand("setalert", "Set alert threshold (setalert cpu|mem|disk <value>)", cmdSetAlert);
@@ -195,6 +196,41 @@ void cmdSetBLEName(int argc, char* argv[]) {
 
     Config::getInstance().setBLEName(argv[1]);
     cli.printf("BLE name set to: %s\n", argv[1]);
+    cli.println("Restart required for changes to take effect");
+}
+
+void cmdSetMDNSName(int argc, char* argv[]) {
+    CLI& cli = CLI::getInstance();
+
+    if (argc < 2) {
+        cli.println("Usage: setmdnsname <name>");
+        cli.println("Sets the mDNS hostname for device discovery");
+        cli.println("Example: setmdnsname mymonitor");
+        cli.println("Device will be accessible as <name>.local");
+        cli.printf("Current mDNS name: %s\n", Config::getInstance().getMDNSName().c_str());
+        return;
+    }
+
+    // Validate mDNS name (only alphanumeric and hyphens, lowercase)
+    String name = String(argv[1]);
+    name.toLowerCase();
+
+    bool valid = true;
+    for (size_t i = 0; i < name.length(); i++) {
+        char c = name.charAt(i);
+        if (!isalnum(c) && c != '-') {
+            valid = false;
+            break;
+        }
+    }
+
+    if (!valid) {
+        cli.println("Invalid mDNS name. Use only letters, numbers, and hyphens");
+        return;
+    }
+
+    Config::getInstance().setMDNSName(name.c_str());
+    cli.printf("mDNS name set to: %s.local\n", name.c_str());
     cli.println("Restart required for changes to take effect");
 }
 

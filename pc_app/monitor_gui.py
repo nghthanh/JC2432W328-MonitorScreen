@@ -37,6 +37,13 @@ try:
 except ImportError:
     SERIAL_AVAILABLE = False
 
+# Try to import mDNS discovery
+try:
+    from mdns_discovery import discover_devices as mdns_discover_devices, resolve_hostname
+    MDNS_AVAILABLE = True
+except ImportError:
+    MDNS_AVAILABLE = False
+
 
 class MonitorWorker(QThread):
     """Worker thread for system monitoring"""
@@ -119,7 +126,7 @@ class SerialCLI(QObject):
             self.error_occurred.emit(f"Serial connection failed: {str(e)}")
             return False
 
-    def send_command(self, command):
+    def send_command(self, command, timeout_seconds=20):
         """Send CLI command and get response"""
         if not self.serial or not self.serial.is_open:
             self.error_occurred.emit("Not connected to serial port")
@@ -130,24 +137,52 @@ class SerialCLI(QObject):
             self.serial.reset_input_buffer()
 
             # Send command
+            print(f"[Serial] Sending command: {command}")
             self.serial.write(f"{command}\n".encode())
-            time.sleep(0.1)
+            time.sleep(0.2)
 
             # Read response
             response = ""
-            timeout = time.time() + 2  # 2 second timeout
+            timeout = time.time() + timeout_seconds
+            last_data_time = time.time()
+            line_count = 0
+            got_substantial_data = False
+
+            print(f"[Serial] Reading response (timeout: {timeout_seconds}s)...")
 
             while time.time() < timeout:
                 if self.serial.in_waiting:
                     line = self.serial.readline().decode('utf-8', errors='ignore').strip()
+                    line_count += 1
+                    print(f"[Serial] Line {line_count}: '{line}'")
+
                     if line and not line.startswith('>'):
                         response += line + "\n"
+                        last_data_time = time.time()
+
+                        # Consider data substantial after we get more than just status messages
+                        # (scanwifi sends "Scanning..." then pauses, then sends results)
+                        if line_count > 5 or "Found" in line or "SSID" in line or ")" in line:
+                            got_substantial_data = True
                 else:
+                    # Only apply idle timeout if we got substantial data (actual results)
+                    # For commands like scanwifi, initial messages come quick, then long pause, then results
+                    if got_substantial_data and (time.time() - last_data_time) > 2.0:
+                        print(f"[Serial] Idle timeout reached (2.0s with no data after getting results)")
+                        break
+
+                    # If waiting too long with no substantial data, just use what we have
+                    if not got_substantial_data and line_count > 0 and (time.time() - last_data_time) > 12.0:
+                        print(f"[Serial] Long idle without results - command may not return data")
+                        break
+
                     time.sleep(0.05)
 
+            print(f"[Serial] Finished reading. Total lines: {line_count}, Response length: {len(response)}")
             return response.strip()
 
         except Exception as e:
+            print(f"[Serial] Exception: {str(e)}")
             self.error_occurred.emit(f"Command failed: {str(e)}")
             return None
 
@@ -164,6 +199,56 @@ class SerialCLI(QObject):
         return [port.device for port in serial.tools.list_ports.comports()]
 
 
+class DiscoveryWorker(QThread):
+    """Worker thread for device discovery"""
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, timeout=5.0):
+        super().__init__()
+        self.timeout = timeout
+
+    def run(self):
+        """Run discovery"""
+        print("Discovery thread started")
+        try:
+            print("Calling mdns_discover_devices...")
+            devices = mdns_discover_devices(timeout=self.timeout)
+            print(f"mdns_discover_devices returned: {devices}")
+            self.finished.emit(devices)
+        except Exception as e:
+            import traceback
+            error_msg = str(e)
+            print(f"Discovery exception: {error_msg}")
+            print(traceback.format_exc())
+            self.error.emit(error_msg)
+
+
+class CommandWorker(QThread):
+    """Worker thread for serial commands"""
+    finished = pyqtSignal(str, str)  # command, response
+    error = pyqtSignal(str)
+
+    def __init__(self, cli, command):
+        super().__init__()
+        self.cli = cli
+        self.command = command
+
+    def run(self):
+        """Run command"""
+        print(f"Command thread started: {self.command}")
+        try:
+            response = self.cli.send_command(self.command)
+            print(f"Command response received: {len(response) if response else 0} chars")
+            self.finished.emit(self.command, response)
+        except Exception as e:
+            import traceback
+            error_msg = str(e)
+            print(f"Command exception: {error_msg}")
+            print(traceback.format_exc())
+            self.error.emit(error_msg)
+
+
 class MonitorGUI(QMainWindow):
     """Main GUI application"""
 
@@ -171,6 +256,7 @@ class MonitorGUI(QMainWindow):
         super().__init__()
         self.worker = None
         self.cli = SerialCLI() if SERIAL_AVAILABLE else None
+        self.discovery_worker = None
         self.init_ui()
 
     def init_ui(self):
@@ -211,24 +297,41 @@ class MonitorGUI(QMainWindow):
         self.mode_combo.addItems(["WiFi", "BLE"])
         conn_layout.addWidget(self.mode_combo, 0, 1)
 
+        # Device discovery (mDNS)
+        if MDNS_AVAILABLE:
+            conn_layout.addWidget(QLabel("Discover:"), 1, 0)
+            discover_layout = QHBoxLayout()
+            self.device_combo = QComboBox()
+            self.device_combo.addItem("No devices discovered")
+            self.device_combo.currentIndexChanged.connect(self.on_device_selected)
+            discover_layout.addWidget(self.device_combo)
+
+            self.discover_btn = QPushButton("Scan Network")
+            self.discover_btn.clicked.connect(self.discover_devices)
+            discover_layout.addWidget(self.discover_btn)
+
+            discover_widget = QWidget()
+            discover_widget.setLayout(discover_layout)
+            conn_layout.addWidget(discover_widget, 1, 1)
+
         # Host/IP
-        conn_layout.addWidget(QLabel("ESP32 IP:"), 1, 0)
+        conn_layout.addWidget(QLabel("ESP32 IP:"), 2, 0)
         self.host_edit = QLineEdit("192.168.1.100")
-        conn_layout.addWidget(self.host_edit, 1, 1)
+        conn_layout.addWidget(self.host_edit, 2, 1)
 
         # Port
-        conn_layout.addWidget(QLabel("Port:"), 2, 0)
+        conn_layout.addWidget(QLabel("Port:"), 3, 0)
         self.port_spin = QSpinBox()
         self.port_spin.setRange(1, 65535)
         self.port_spin.setValue(8080)
-        conn_layout.addWidget(self.port_spin, 2, 1)
+        conn_layout.addWidget(self.port_spin, 3, 1)
 
         # Update interval
-        conn_layout.addWidget(QLabel("Interval (s):"), 3, 0)
+        conn_layout.addWidget(QLabel("Interval (s):"), 4, 0)
         self.interval_spin = QSpinBox()
         self.interval_spin.setRange(1, 60)
         self.interval_spin.setValue(1)
-        conn_layout.addWidget(self.interval_spin, 3, 1)
+        conn_layout.addWidget(self.interval_spin, 4, 1)
 
         layout.addWidget(conn_group)
 
@@ -518,6 +621,73 @@ class MonitorGUI(QMainWindow):
 
         return tab
 
+    # Device discovery methods
+    def discover_devices(self):
+        """Discover ESP32 devices on the network using mDNS"""
+        if not MDNS_AVAILABLE:
+            QMessageBox.warning(self, "mDNS Not Available",
+                              "mDNS discovery requires zeroconf library.\n"
+                              "Install with: pip install zeroconf")
+            return
+
+        # Don't start new discovery if one is already running
+        if self.discovery_worker and self.discovery_worker.isRunning():
+            return
+
+        self.discover_btn.setEnabled(False)
+        self.discover_btn.setText("Scanning...")
+        self.log_message("Discovering devices...")
+
+        # Create and start discovery worker
+        self.discovery_worker = DiscoveryWorker(timeout=5.0)
+        self.discovery_worker.finished.connect(self.on_discovery_complete)
+        self.discovery_worker.error.connect(self.on_discovery_error)
+        self.discovery_worker.start()
+
+    def on_discovery_complete(self, devices):
+        """Handle discovery completion"""
+        print(f"on_discovery_complete called with {len(devices) if devices else 0} devices")
+        self.discover_btn.setEnabled(True)
+        self.discover_btn.setText("Scan Network")
+
+        self.device_combo.clear()
+
+        if devices:
+            self.log_message(f"Found {len(devices)} device(s)")
+            # Store devices for later use
+            self.discovered_devices = devices
+
+            for device in devices:
+                # Format: "name (IP:port)"
+                display_text = f"{device['name']} ({device['addresses'][0]}:{device['port']})"
+                print(f"Adding device to combo: {display_text}")
+                self.device_combo.addItem(display_text)
+        else:
+            self.device_combo.addItem("No devices found")
+            self.log_message("No devices found")
+
+    def on_discovery_error(self, error_msg):
+        """Handle discovery error"""
+        self.discover_btn.setEnabled(True)
+        self.discover_btn.setText("Scan Network")
+        self.device_combo.clear()
+        self.device_combo.addItem("Discovery failed")
+        self.show_error(f"Device discovery failed: {error_msg}")
+
+    def on_device_selected(self, index):
+        """Handle device selection from discovery dropdown"""
+        if not hasattr(self, 'discovered_devices') or not self.discovered_devices:
+            return
+
+        if index < 0 or index >= len(self.discovered_devices):
+            return
+
+        device = self.discovered_devices[index]
+        # Update host and port fields
+        self.host_edit.setText(device['addresses'][0])
+        self.port_spin.setValue(device['port'])
+        self.log_message(f"Selected device: {device['name']}")
+
     # Monitor control methods
     def start_monitoring(self):
         """Start system monitoring"""
@@ -602,18 +772,54 @@ class MonitorGUI(QMainWindow):
 
     def send_cli_command(self, command):
         """Send CLI command and display response"""
+        print(f"send_cli_command called: '{command}'")
         if not self.cli or not self.cli.serial or not self.cli.serial.is_open:
             self.show_error("Not connected to serial port")
+            print("Serial port not connected!")
             return None
 
-        response = self.cli.send_command(command)
+        print("Creating CommandWorker...")
+        # Create and start command worker
+        worker = CommandWorker(self.cli, command)
+
+        # Connect signals
+        worker.finished.connect(self.on_command_response)
+        worker.error.connect(lambda msg: self.show_error(f"Command error: {msg}"))
+
+        # Keep reference so worker isn't garbage collected
+        if not hasattr(self, 'command_workers'):
+            self.command_workers = []
+        self.command_workers.append(worker)
+
+        # Cleanup on completion
+        def cleanup():
+            print(f"Cleaning up worker for command: {command}")
+            if worker in self.command_workers:
+                self.command_workers.remove(worker)
+
+        worker.finished.connect(cleanup)
+        worker.error.connect(cleanup)
+
+        print("Starting CommandWorker...")
+        worker.start()
+
+        return None
+
+    def on_command_response(self, command, response):
+        """Handle command response"""
+        print(f"on_command_response called - command: '{command}', response length: {len(response) if response else 0}")
         if response:
+            print(f"Response content: {response[:200]}")  # First 200 chars
             self.response_text.append(f"> {command}\n{response}\n")
-        return response
+            self.log_message(f"Command '{command}' completed")
+        else:
+            self.log_message(f"Command '{command}' completed (no response)")
+            self.response_text.append(f"> {command}\n(No response)\n")
 
     # Configuration methods
     def scan_wifi(self):
         """Scan for WiFi networks"""
+        self.log_message("Scanning for WiFi networks...")
         self.send_cli_command("scanwifi")
 
     def set_wifi(self):

@@ -8,6 +8,7 @@ Config::Config() {
     wifiSSID = "";
     wifiPassword = "";
     bleName = "ESP32_Monitor";
+    mdnsName = "esp32monitor";
     displayTheme = THEME_DEFAULT;
     brightness = 128;
     serverPort = 8080;
@@ -48,6 +49,7 @@ void Config::loadSettings() {
     wifiSSID = prefs.getString("wifiSSID", "");
     wifiPassword = prefs.getString("wifiPass", "");
     bleName = prefs.getString("bleName", "ESP32_Monitor");
+    mdnsName = prefs.getString("mdnsName", "esp32monitor");
     displayTheme = (DisplayTheme)prefs.getUChar("theme", THEME_DEFAULT);
     brightness = prefs.getUChar("brightness", 128);
     serverPort = prefs.getUShort("port", 8080);
@@ -78,6 +80,7 @@ void Config::saveSettings() {
     prefs.putString("wifiSSID", wifiSSID);
     prefs.putString("wifiPass", wifiPassword);
     prefs.putString("bleName", bleName);
+    prefs.putString("mdnsName", mdnsName);
     prefs.putUChar("theme", (uint8_t)displayTheme);
     prefs.putUChar("brightness", brightness);
     prefs.putUShort("port", serverPort);
@@ -142,6 +145,15 @@ void Config::setBLEName(const char* name) {
 
 String Config::getBLEName() {
     return bleName;
+}
+
+void Config::setMDNSName(const char* name) {
+    mdnsName = name;
+    prefs.putString("mdnsName", mdnsName);
+}
+
+String Config::getMDNSName() {
+    return mdnsName;
 }
 
 void Config::setDisplayTheme(DisplayTheme theme) {

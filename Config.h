@@ -46,6 +46,10 @@ public:
     void setBLEName(const char* name);
     String getBLEName();
 
+    // mDNS settings
+    void setMDNSName(const char* name);
+    String getMDNSName();
+
     // Display settings
     void setDisplayTheme(DisplayTheme theme);
     DisplayTheme getDisplayTheme();
@@ -89,6 +93,7 @@ private:
     String wifiSSID;
     String wifiPassword;
     String bleName;
+    String mdnsName;
     DisplayTheme displayTheme;
     uint8_t brightness;
     AlertThresholds alertThresholds;

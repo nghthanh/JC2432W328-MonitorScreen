@@ -16,7 +16,7 @@ bool WiFiComm::begin() {
     String password = cfg.getWiFiPassword();
 
     if (ssid.length() == 0) {
-        Serial.println("WiFi SSID not configured");
+        Serial.println("WiFi SSID not configured\r\n");
         // Ensure WiFi is fully stopped if not configured
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
@@ -27,14 +27,27 @@ bool WiFiComm::begin() {
 
     if (WiFi.status() == WL_CONNECTED) {
         udp.begin(localPort);
-        Serial.printf("WiFi connected. IP: %s, Port: %d\n",
+        Serial.printf("WiFi connected. IP: %s, Port: %d\r\n",
                      WiFi.localIP().toString().c_str(), localPort);
+
+        // Initialize mDNS
+        String mdnsName = cfg.getMDNSName();
+        if (MDNS.begin(mdnsName.c_str())) {
+            Serial.printf("mDNS responder started: %s.local\r\n", mdnsName.c_str());
+
+            // Add service to mDNS-SD
+            MDNS.addService("esp32monitor", "udp", localPort);
+            Serial.printf("mDNS service advertised: _esp32monitor._udp.local port %d\r\n", localPort);
+        } else {
+            Serial.println("Error starting mDNS responder\r\n");
+        }
+
         connected = true;
         return true;
     }
 
     // Connection failed - clean up WiFi
-    Serial.println("WiFi connection failed");
+    Serial.println("WiFi connection failed\r\n");
     WiFi.disconnect(true);
     return false;
 }
@@ -44,7 +57,7 @@ void WiFiComm::connectToWiFi() {
     String ssid = cfg.getWiFiSSID();
     String password = cfg.getWiFiPassword();
 
-    Serial.printf("Connecting to WiFi: %s\n", ssid.c_str());
+    Serial.printf("Connecting to WiFi: %s\r\n", ssid.c_str());
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), password.c_str());
 
@@ -54,13 +67,13 @@ void WiFiComm::connectToWiFi() {
         Serial.print(".");
         attempts++;
     }
-    Serial.println();
+    Serial.println("\r\n");
 }
 
 void WiFiComm::update() {
     if (WiFi.status() != WL_CONNECTED) {
         if (connected) {
-            Serial.println("WiFi disconnected");
+            Serial.println("WiFi disconnected\r\n");
             connected = false;
         }
         return;
@@ -68,7 +81,7 @@ void WiFiComm::update() {
 
     if (!connected) {
         connected = true;
-        Serial.println("WiFi reconnected");
+        Serial.println("WiFi reconnected\r\n");
     }
 }
 
@@ -90,6 +103,7 @@ bool WiFiComm::receiveData(SystemData& data) {
 }
 
 void WiFiComm::stop() {
+    MDNS.end();
     udp.stop();
     WiFi.disconnect();
     connected = false;

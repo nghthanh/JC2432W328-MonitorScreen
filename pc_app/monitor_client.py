@@ -9,6 +9,7 @@ Requirements:
 - psutil: pip install psutil
 - For BLE: pip install bleak
 - For GPU monitoring: pip install gputil
+- For mDNS discovery: pip install zeroconf
 - For Windows temperature monitoring: pip install wmi (requires OpenHardwareMonitor or LibreHardwareMonitor running)
 """
 
@@ -18,6 +19,13 @@ import time
 import argparse
 import platform
 import psutil
+
+# Try to import mDNS discovery (optional)
+try:
+    from mdns_discovery import discover_devices, resolve_hostname
+    MDNS_AVAILABLE = True
+except ImportError:
+    MDNS_AVAILABLE = False
 
 # Global logging flag
 LOG_ENABLED = True
@@ -390,13 +398,15 @@ def main():
     parser.add_argument('--mode', choices=['wifi', 'ble'], default='wifi',
                         help='Communication mode (default: wifi)')
     parser.add_argument('--host', default='192.168.1.100',
-                        help='ESP32 IP address (WiFi mode, default: 192.168.1.100)')
+                        help='ESP32 IP address or mDNS hostname (WiFi mode, default: 192.168.1.100)')
     parser.add_argument('--port', type=int, default=8080,
                         help='ESP32 UDP port (WiFi mode, default: 8080)')
     parser.add_argument('--device', default='ESP32_Monitor',
                         help='BLE device name (BLE mode, default: ESP32_Monitor)')
     parser.add_argument('--interval', type=int, default=1,
                         help='Update interval in seconds (default: 1)')
+    parser.add_argument('--discover', action='store_true',
+                        help='Discover ESP32 devices using mDNS and exit')
     parser.add_argument('--log', action='store_true',
                         help='Enable logging output (default: disabled)')
     parser.add_argument('--quiet', action='store_true',
@@ -407,6 +417,32 @@ def main():
     # Set logging based on arguments
     LOG_ENABLED = args.log and not args.quiet
 
+    # Handle discovery mode
+    if args.discover:
+        if not MDNS_AVAILABLE:
+            print("Error: mDNS discovery requires zeroconf library")
+            print("Install with: pip install zeroconf")
+            return
+
+        print("Discovering ESP32 Monitor devices...")
+        devices = discover_devices(timeout=5.0)
+
+        if devices:
+            print(f"\nFound {len(devices)} device(s):")
+            for i, device in enumerate(devices):
+                print(f"\n[{i}] {device['name']}")
+                print(f"    Hostname: {device['hostname']}")
+                print(f"    IP Address: {', '.join(device['addresses'])}")
+                print(f"    Port: {device['port']}")
+                print(f"\nTo connect, use: --host {device['addresses'][0]} --port {device['port']}")
+        else:
+            print("No devices found.")
+            print("\nTroubleshooting:")
+            print("- Ensure ESP32 is connected to WiFi")
+            print("- Check that device is on the same network")
+            print("- Verify mDNS is enabled on ESP32")
+        return
+
     log_print("=" * 50)
     log_print("ESP32 System Monitor - PC Client")
     log_print("=" * 50)
@@ -414,8 +450,20 @@ def main():
     log_print(f"Interval: {args.interval} seconds")
 
     if args.mode == 'wifi':
-        log_print(f"Target: {args.host}:{args.port}")
-        run_wifi_mode(args.host, args.port, args.interval)
+        host = args.host
+
+        # Try mDNS resolution if hostname ends with .local or doesn't look like an IP
+        if MDNS_AVAILABLE and ('.' not in host or host.endswith('.local')):
+            log_print(f"Resolving hostname: {host}")
+            resolved_ip = resolve_hostname(host, timeout=3.0)
+            if resolved_ip:
+                log_print(f"Resolved to: {resolved_ip}")
+                host = resolved_ip
+            else:
+                log_print(f"Warning: Could not resolve {host} via mDNS, trying as-is...")
+
+        log_print(f"Target: {host}:{args.port}")
+        run_wifi_mode(host, args.port, args.interval)
     else:
         log_print(f"Device: {args.device}")
         import asyncio

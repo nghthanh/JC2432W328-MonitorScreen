@@ -15,6 +15,9 @@ void cmdSetInterface(int argc, char* argv[]);
 // BLE commands
 void cmdSetBLEName(int argc, char* argv[]);
 
+// mDNS commands
+void cmdSetMDNSName(int argc, char* argv[]);
+
 // Display commands
 void cmdSetTheme(int argc, char* argv[]);
 void cmdSetBrightness(int argc, char* argv[]);

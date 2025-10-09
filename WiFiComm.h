@@ -4,6 +4,7 @@
 #include "CommInterface.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <ESPmDNS.h>
 
 class WiFiComm : public CommInterface {
 public:

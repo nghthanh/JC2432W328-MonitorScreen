@@ -13,6 +13,7 @@ A comprehensive PC system monitoring solution using ESP32 microcontroller with S
 ### Communication
 - **WiFi Mode**: UDP communication with PC
 - **BLE Mode**: Bluetooth Low Energy communication
+- **mDNS/DNS-SD**: Automatic device discovery on local network
 - Selectable interface via CLI or web configuration
 - JSON data format for extensibility
 
@@ -209,6 +210,7 @@ For detailed GUI documentation, see [pc_app/README_GUI.md](pc_app/README_GUI.md)
 | `setwifi` | Set WiFi credentials | `setwifi "My Network" MyPassword` |
 | `setinterface` | Set comm interface | `setinterface wifi` or `setinterface ble` |
 | `setblename` | Set BLE device name | `setblename MyMonitor` |
+| `setmdnsname` | Set mDNS hostname | `setmdnsname mymonitor` |
 | `setport` | Set server port | `setport 8080` |
 
 #### Display Commands
@@ -264,11 +266,37 @@ When using WiFi mode:
    ```bash
    python pc_app/monitor_gui.py
    ```
-2. Enter ESP32 IP address in the Monitor tab
-3. Click "Start Monitoring"
-4. Use the "Device Config" tab to configure ESP32 settings via serial connection
+2. In the Monitor tab, click "Scan Network" to discover devices (requires zeroconf library)
+3. Select a discovered device from the dropdown, or manually enter ESP32 IP address
+4. Click "Start Monitoring"
+5. Use the "Device Config" tab to configure ESP32 settings via serial connection
 
 **Recommendation**: Use GUI for initial setup and configuration, then use command-line for continuous monitoring.
+
+#### Using mDNS Discovery (No IP Address Needed!)
+
+If you have the `zeroconf` library installed, you can discover devices automatically:
+
+**Discover devices:**
+```bash
+python pc_app/monitor_client.py --discover
+```
+
+**Connect using hostname:**
+```bash
+python pc_app/monitor_client.py --host esp32monitor.local --log
+```
+
+Or use the mDNS name directly (without .local):
+```bash
+python pc_app/monitor_client.py --host esp32monitor --log
+```
+
+**Change mDNS hostname:**
+```bash
+setmdnsname mymonitor
+```
+Device will be accessible as `mymonitor.local`
 
 ### BLE Mode
 
@@ -289,10 +317,11 @@ python monitor_client.py --help
 
 Options:
   --mode {wifi,ble}      Communication mode (default: wifi)
-  --host HOST            ESP32 IP address (WiFi mode)
+  --host HOST            ESP32 IP address or mDNS hostname (WiFi mode)
   --port PORT            ESP32 UDP port (WiFi mode, default: 8080)
   --device DEVICE        BLE device name (BLE mode)
   --interval INTERVAL    Update interval in seconds (default: 1)
+  --discover             Discover ESP32 devices using mDNS and exit
   --log                  Enable logging output (disabled by default)
   --quiet                Disable all logging output
 ```
@@ -307,6 +336,16 @@ python monitor_client.py --host 192.168.1.100 --port 8080
 Run with logging enabled:
 ```bash
 python monitor_client.py --host 192.168.1.100 --port 8080 --log
+```
+
+Discover devices on network:
+```bash
+python monitor_client.py --discover
+```
+
+Connect using mDNS hostname:
+```bash
+python monitor_client.py --host esp32monitor.local --log
 ```
 
 ### Display Themes
@@ -541,7 +580,8 @@ For issues, questions, or contributions, please refer to the project repository.
 - [x] Configurable idle timeout
 - [x] Silent mode for PC client
 - [x] CRLF line endings in CLI
-- [x] **NEW: PyQt5 GUI Application** with device configuration
+- [x] PyQt5 GUI Application with device configuration
+- [x] **NEW: mDNS/DNS-SD service discovery** - No more manual IP address entry!
 
 ## Future Enhancements
 

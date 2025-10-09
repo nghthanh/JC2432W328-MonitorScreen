@@ -31,6 +31,7 @@ Python application that collects system information from your PC and sends it to
 - **Communication**:
   - WiFi mode (UDP packets)
   - BLE mode (Bluetooth Low Energy)
+  - mDNS/DNS-SD device discovery
 
 ## Installation
 
@@ -41,6 +42,11 @@ pip install psutil
 ```
 
 ### Optional Requirements
+
+For mDNS device discovery:
+```bash
+pip install zeroconf
+```
 
 For GPU monitoring:
 ```bash
@@ -73,13 +79,29 @@ python monitor_client.py --mode wifi --host 192.168.1.100 --port 8080
 python monitor_client.py --mode ble --device ESP32_Monitor
 ```
 
+### mDNS Discovery Mode
+
+Discover ESP32 devices on your network automatically (requires `zeroconf` library):
+
+```bash
+# Discover all ESP32 Monitor devices
+python monitor_client.py --discover
+
+# Connect using mDNS hostname
+python monitor_client.py --host esp32monitor.local --log
+
+# Or without .local suffix
+python monitor_client.py --host esp32monitor --log
+```
+
 ### Command Line Arguments
 
 - `--mode`: Communication mode (`wifi` or `ble`, default: `wifi`)
-- `--host`: ESP32 IP address for WiFi mode (default: `192.168.1.100`)
+- `--host`: ESP32 IP address or mDNS hostname for WiFi mode (default: `192.168.1.100`)
 - `--port`: UDP port for WiFi mode (default: `8080`)
 - `--device`: BLE device name for BLE mode (default: `ESP32_Monitor`)
 - `--interval`: Update interval in seconds (default: `1`)
+- `--discover`: Discover ESP32 devices using mDNS and exit
 - `--log`: Enable logging output (disabled by default for silent operation)
 - `--quiet`: Disable all logging output (same as not using `--log`)
 
